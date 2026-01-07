@@ -1,0 +1,11 @@
+# build artifacts
+build/
+install/
+log/
+
+# vscode
+.vscode/
+
+# ros bag
+*.db3
+*.bag
