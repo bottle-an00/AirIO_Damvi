@@ -17,8 +17,8 @@ public:
           last_stamp_(rclcpp::Time(0, 0)),
           imu_buffer_(50),
 
-          airimu_runner_("/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.engine"),
-          airio_runner_("/home/jba/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.engine")
+          airimu_runner_("/root/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.engine"),
+          airio_runner_("/root/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.engine")
     {
         rclcpp::SensorDataQoS qos;
         qos.keep_last(1);

@@ -6,6 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(ONNXRUNTIME_ROOT /opt/onnxruntime)
+set(CUDA_INCLUDE_DIR "/usr/local/cuda/include")
 set(TENSORRT_ROOT "" CACHE PATH "TensorRT root path (optional)")
 
 # Try common include/library locations (+ optional TENSORRT_ROOT)
@@ -80,6 +81,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(CUDAToolkit REQUIRED)
 
 include_directories(
   ${ONNXRUNTIME_ROOT}/include
@@ -113,6 +115,7 @@ add_executable(tensorrt_airio_Damvi src/tensorrt_airio_Damvi.cpp)
 ament_target_dependencies(tensorrt_airio_Damvi rclcpp sensor_msgs)
 target_include_directories(tensorrt_airio_Damvi PRIVATE
   ${TENSORRT_INCLUDE_DIR}
+  ${CUDA_INCLUDE_DIR}
 )
 target_link_libraries(tensorrt_airio_Damvi imu_buffer_lib
   ${TENSORRT_NVINFER_LIB}

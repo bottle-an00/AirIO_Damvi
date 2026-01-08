@@ -6,11 +6,11 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-PROJECT_ROOT = "/home/jba/AirIO_Damvi"
-CKPT_PATH    = "/home/jba/AirIO_Damvi/model/airimu/best_model.ckpt"
+PROJECT_ROOT = "/root/AirIO_Damvi"
+CKPT_PATH    = "/root/AirIO_Damvi/model/airimu/best_model.ckpt"
 
-CONF_PATH    = "/home/jba/AirIO_Damvi/model/airimu/codenet.yaml"
-ONNX_PATH    = "/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"
+CONF_PATH    = "/root/AirIO_Damvi/model/airimu/codenet.yaml"
+ONNX_PATH    = "/root/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"
 
 B = 1
 T = 50

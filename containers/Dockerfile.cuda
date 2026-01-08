@@ -31,6 +31,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/* \
   && rosdep init || true && rosdep update
 
+
+ARG TRT_VER=10.13.0.35-1+cuda11.8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnvinfer10=${TRT_VER} \
+    libnvinfer-lean10=${TRT_VER} \
+    libnvinfer-dispatch10=${TRT_VER} \
+    libnvinfer-plugin10=${TRT_VER} \
+    libnvinfer-vc-plugin10=${TRT_VER} \
+    libnvonnxparsers10=${TRT_VER} \
+    libnvinfer-bin=${TRT_VER} \
+    libnvinfer-dev=${TRT_VER} \
+    libnvinfer-plugin-dev=${TRT_VER} \
+    libnvonnxparsers-dev=${TRT_VER} \
+    libnvinfer-headers-dev=${TRT_VER} \
+    libnvinfer-headers-plugin-dev=${TRT_VER} \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG ORT_VERSION=1.17.3
+ARG ORT_OS=linux
+ARG ORT_ARCH=x64
+
+RUN mkdir -p /opt/onnxruntime \
+ && curl -L -o /tmp/ort.tgz \
+    https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-${ORT_OS}-${ORT_ARCH}-${ORT_VERSION}.tgz \
+ && tar -xzf /tmp/ort.tgz -C /tmp \
+ && mv /tmp/onnxruntime-${ORT_OS}-${ORT_ARCH}-${ORT_VERSION}/* /opt/onnxruntime/ \
+ && rm -rf /tmp/ort.tgz /tmp/onnxruntime-${ORT_OS}-${ORT_ARCH}-${ORT_VERSION}
+
 COPY configs/bashrc_config.txt /tmp/bashrc_config_temp.txt
 
 RUN cat /tmp/bashrc_config_temp.txt >> /root/.bashrc && \

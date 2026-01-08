@@ -1,6 +1,7 @@
 #pragma once
 
 #include <NvInfer.h>
+#include <NvInferVersion.h>
 #include <cuda_runtime_api.h>
 
 #include <fstream>
@@ -82,7 +83,7 @@ private:
 
   struct TRTDestroy {
     template <typename T>
-    void operator()(T* p) const noexcept { if (p) p->destroy(); }
+    void operator()(T* p) const noexcept { if (p) delete p; }
   };
 
   static std::vector<char> loadFile_(const std::string& path) {
