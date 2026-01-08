@@ -5,18 +5,35 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(ONNXRUNTIME_ROOT /opt/onnxruntime)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+
+include_directories(
+  ${ONNXRUNTIME_ROOT}/include
+)
+set(ONNXRUNTIME_LIB
+    ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
+)
+link_directories(
+  ${ONNXRUNTIME_ROOT}/lib
+)
 
 add_library(imu_buffer_lib include/core/imu_buffer.cpp)
 target_include_directories(imu_buffer_lib PUBLIC include)
 
 add_executable(imu_subscriber src/imu_subscriber.cpp)
 ament_target_dependencies(imu_subscriber rclcpp sensor_msgs)
-target_link_libraries(imu_subscriber imu_buffer_lib)
-
+target_link_libraries(imu_subscriber imu_buffer_lib
+  onnxruntime
+)
+set_target_properties(imu_subscriber PROPERTIES
+  BUILD_RPATH "/opt/onnxruntime/lib"
+  INSTALL_RPATH "/opt/onnxruntime/lib"
+)
 install(TARGETS imu_subscriber imu_buffer_lib
   DESTINATION lib/${PROJECT_NAME}
 )

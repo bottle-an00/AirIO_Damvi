@@ -44,23 +44,76 @@ bool ImuBuffer::get_sequence(std::vector<ImuSample>& out) const
     return true;
 }
 
-bool ImuBuffer::fill_features(std::vector<float>& out) const
+bool ImuBuffer::fill_feat_flat(std::vector<float>& out) const
 {
-    if (size_ < capacity_) {
-        return false;
+    if (size_ < capacity_) return false;
+
+    const size_t T = capacity_;
+    out.resize(T * 6);
+
+    // oldest -> newest
+    for (size_t i = 0; i < T; ++i) {
+        const size_t idx = (head_ - T + i + T) % T;  // capacity_ == T
+        const ImuSample& s = data_[idx];
+
+        out[i*6 + 0] = static_cast<float>(s.ax);
+        out[i*6 + 1] = static_cast<float>(s.ay);
+        out[i*6 + 2] = static_cast<float>(s.az);
+        out[i*6 + 3] = static_cast<float>(s.gx);
+        out[i*6 + 4] = static_cast<float>(s.gy);
+        out[i*6 + 5] = static_cast<float>(s.gz);
     }
-    out.resize(capacity_ * 7);
-    // 오래된 -> 최신 순서로 채움
-    for (size_t i = 0; i < capacity_; ++i) {
-        size_t idx = (head_ - capacity_ + i + capacity_) % capacity_;
-        const ImuSample& sample = data_[idx];
-        out[i * 7 + 0] = static_cast<float>(sample.ax);
-        out[i * 7 + 1] = static_cast<float>(sample.ay);
-        out[i * 7 + 2] = static_cast<float>(sample.az);
-        out[i * 7 + 3] = static_cast<float>(sample.gx);
-        out[i * 7 + 4] = static_cast<float>(sample.gy);
-        out[i * 7 + 5] = static_cast<float>(sample.gz);
-        out[i * 7 + 6] = static_cast<float>(sample.dt);
+    return true;
+}
+
+bool ImuBuffer::fill_acc_flat(std::vector<float>& out) const
+{
+    if (size_ < capacity_) return false;
+
+    const size_t T = capacity_;
+    out.resize(T * 3);
+
+    for (size_t i = 0; i < T; ++i) {
+        const size_t idx = (head_ - T + i + T) % T;
+        const ImuSample& s = data_[idx];
+
+        out[i*3 + 0] = static_cast<float>(s.ax);
+        out[i*3 + 1] = static_cast<float>(s.ay);
+        out[i*3 + 2] = static_cast<float>(s.az);
+    }
+    return true;
+}
+
+bool ImuBuffer::fill_gyro_flat(std::vector<float>& out) const
+{
+    if (size_ < capacity_) return false;
+
+    const size_t T = capacity_;
+    out.resize(T * 3);
+
+    for (size_t i = 0; i < T; ++i) {
+        const size_t idx = (head_ - T + i + T) % T;
+        const ImuSample& s = data_[idx];
+
+        out[i*3 + 0] = static_cast<float>(s.gx);
+        out[i*3 + 1] = static_cast<float>(s.gy);
+        out[i*3 + 2] = static_cast<float>(s.gz);
+    }
+    return true;
+}
+
+bool ImuBuffer::fill_dt_flat(std::vector<float>& out) const
+{
+    if (size_ < capacity_) return false;
+
+    const size_t T = capacity_;
+    out.resize(T);
+
+    for (size_t i = 0; i < T; ++i) {
+        const size_t idx = (head_ - T + i + T) % T;
+        const ImuSample& s = data_[idx];
+
+        out[i] = static_cast<float>(s.dt);
     }
     return true;
 }

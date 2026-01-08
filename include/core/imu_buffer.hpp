@@ -27,8 +27,11 @@ public:
     // Sequence 조회
     bool get_sequence(std::vector<ImuSample>& out) const;
 
-    // 모델 입력용 연속 feature 채우기
-    bool fill_features(std::vector<float>& out) const;
+    // ONNX 입력용 flat 벡터 추출 (oldest -> newest, 길이 = capacity_)
+    bool fill_feat_flat(std::vector<float>& out) const;  // [T*6]  ax..gz
+    bool fill_acc_flat(std::vector<float>& out) const;   // [T*3]  ax..az
+    bool fill_gyro_flat(std::vector<float>& out) const;  // [T*3]  gx..gz
+    bool fill_dt_flat(std::vector<float>& out) const;    // [T]    dt
 
 private:
     size_t capacity_;
