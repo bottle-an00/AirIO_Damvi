@@ -6,21 +6,15 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-# ============ 사용자 환경에 맞게 수정 ============
 PROJECT_ROOT = "/home/jba/AirIO_Damvi"
 CKPT_PATH    = "/home/jba/AirIO_Damvi/model/airimu/best_model.ckpt"
 
-# ✅ 너가 YAML로 변환해둔 conf를 쓰는 걸 권장함
-# 예: /home/jba/AirIO_Damvi/model/airimu/codenet.yaml
 CONF_PATH    = "/home/jba/AirIO_Damvi/model/airimu/codenet.yaml"
-
-ONNX_PATH    = "/home/jba/AirIO_Damvi/model/airimu/codenet_corr_feat.onnx"
+ONNX_PATH    = "/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"
 
 B = 1
 T = 50
-# ==============================================
 
-# (선택) legacy exporter + 일부 BLAS 백엔드에서 크래시(FPE) 방지용
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -28,7 +22,6 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 torch.set_num_threads(1)
 torch.backends.mkldnn.enabled = False
 
-# 프로젝트 루트가 import 최우선이 되도록
 sys.path.insert(0, PROJECT_ROOT)
 
 def strip_prefix(state_dict, prefixes=("module.", "net.", "model.", "network.")):
@@ -47,10 +40,10 @@ def load_conf_yaml(path: str):
     return conf
 
 def build_codenet(conf):
-    # CodeNet은 model/airimu/code.py 쪽에 있음
     from model.airimu.code import CodeNet
-    # CodeNet은 conf.train을 받는 구조를 가정(기존 코드 패턴과 동일)
+
     codenet = CodeNet(conf.train)
+    
     return codenet
 
 class CodeNetCorrectionFeatWrapper(nn.Module):
