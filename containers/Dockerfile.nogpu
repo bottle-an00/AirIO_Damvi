@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1 \
     libxext6 \
     libx11-6 \
+    libnvinfer-dev \
+    libnvonnxparsers-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. ROS2 저장소 및 GPG 키 추가 (Humble 기준)

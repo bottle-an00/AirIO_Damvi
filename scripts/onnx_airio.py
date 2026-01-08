@@ -4,16 +4,16 @@ import torch, sys
 from collections import OrderedDict
 from pyhocon import ConfigFactory
 
-PROJECT_ROOT = "/home/jba/AirIO_Damvi"
+PROJECT_ROOT = "/root/AirIO_Damvi"
 sys.path.insert(0, PROJECT_ROOT)
 
 from model.airio import net_dict
 
 
 # ====== DEFAULT SETTINGS (사용자 확정 사항) ======
-DEFAULT_CONFIG = "/home/jba/AirIO_Damvi/model/airio/motion_body_rot.conf"
-DEFAULT_CKPT = "/home/jba/AirIO_Damvi/model/airio/best_model.ckpt"
-DEFAULT_OUT = "/home/jba/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.onnx"
+DEFAULT_CONFIG = "/root/AirIO_Damvi/model/airio/motion_body_rot.conf"
+DEFAULT_CKPT = "/root/AirIO_Damvi/model/airio/best_model.ckpt"
+DEFAULT_OUT = "/root/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.onnx"
 
 BATCH_SIZE = 1
 SEQ_LEN = 50
