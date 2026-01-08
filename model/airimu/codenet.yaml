@@ -1,0 +1,25 @@
+train:
+  network: codenet
+  gtrot: false
+  propcov: true
+  covaug: true
+  gravity: 9.81007
+  sampling: 5
+
+  # 학습 하이퍼파라미터(필요하면)
+  lr: 1e-3
+  batch_size: 128
+  rot_weight: 1e3
+  pos_weight: 1e2
+  vel_weight: 1e1
+  cov_weight: 1e-4
+  loss: Huber_loss005
+  rotloss: Huber_loss005
+
+  # data_list는 ONNX export 자체에는 필수는 아니지만 conf 완전성 위해 포함 가능
+  data_list:
+    - name: MY
+      data_root: /home/yeb/dataset/data
+      data_drive: ["imu_0", "imu_2_0"]
+      window_size: 50
+      step_size: 25

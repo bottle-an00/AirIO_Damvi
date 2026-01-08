@@ -9,3 +9,6 @@ log/
 # ros bag
 *.db3
 *.bag
+
+# venv
+.venv/
