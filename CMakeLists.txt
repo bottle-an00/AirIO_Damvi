@@ -25,19 +25,26 @@ link_directories(
 add_library(imu_buffer_lib include/core/imu_buffer.cpp)
 target_include_directories(imu_buffer_lib PUBLIC include)
 
-add_executable(imu_subscriber src/imu_subscriber.cpp)
-ament_target_dependencies(imu_subscriber rclcpp sensor_msgs)
-target_link_libraries(imu_subscriber imu_buffer_lib
+# ONNX Runtime 기반 노드
+add_executable(onnx_airio_Damvi src/onnx_airio_Damvi.cpp)
+ament_target_dependencies(onnx_airio_Damvi rclcpp sensor_msgs)
+target_link_libraries(onnx_airio_Damvi imu_buffer_lib
   onnxruntime
 )
-set_target_properties(imu_subscriber PROPERTIES
+set_target_properties(onnx_airio_Damvi PROPERTIES
   BUILD_RPATH "/opt/onnxruntime/lib"
   INSTALL_RPATH "/opt/onnxruntime/lib"
 )
-install(TARGETS imu_subscriber imu_buffer_lib
+install(TARGETS onnx_airio_Damvi imu_buffer_lib
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# TensorRT 기반 노드
+add_executable(tensorrt_airio_Damvi src/tensorrt_airio_Damvi.cpp)
+ament_target_dependencies(tensorrt_airio_Damvi rclcpp sensor_msgs)
+target_link_libraries(tensorrt_airio_Damvi imu_buffer_lib)
+
+# Testing
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
