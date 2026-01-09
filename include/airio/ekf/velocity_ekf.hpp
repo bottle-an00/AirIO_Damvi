@@ -25,7 +25,8 @@ public:
 
   void UpdateVelocity(const Vec3& z, const Mat3& R);
 
-  void Step(const ImuInput& imu, const std::optional<Vec3>& z, const Mat12& Q, const Mat3& R);
+  // dt: time delta (seconds) to be used for prediction
+  void Step(const ImuInput& imu, const std::optional<Vec3>& z, const Mat12& Q, const Mat3& R, double dt);
 
   // Accessors
   const Vec15& state() const { return x_; }
