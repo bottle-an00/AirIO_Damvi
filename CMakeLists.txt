@@ -15,6 +15,7 @@ option(ENABLE_TENSORRT "Build TensorRT node (requires CUDA+TensorRT)" ON)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 include_directories(${ONNXRUNTIME_ROOT}/include)
 link_directories(${ONNXRUNTIME_ROOT}/lib)
@@ -22,12 +23,22 @@ link_directories(${ONNXRUNTIME_ROOT}/lib)
 add_library(imu_buffer_lib include/core/imu_buffer.cpp)
 target_include_directories(imu_buffer_lib PUBLIC include)
 
+# Velocity EKF library 
+add_library(velocity_ekf_lib include/airio/ekf/velocity_ekf.cpp)
+target_include_directories(velocity_ekf_lib PUBLIC include)
+target_link_libraries(velocity_ekf_lib PUBLIC Eigen3::Eigen)
+
+
 # -------------------------
 # ONNX Runtime node
 # -------------------------
 add_executable(onnx_airio_Damvi src/onnx_airio_Damvi.cpp)
 ament_target_dependencies(onnx_airio_Damvi rclcpp sensor_msgs)
-target_link_libraries(onnx_airio_Damvi imu_buffer_lib onnxruntime)
+target_link_libraries(onnx_airio_Damvi 
+  imu_buffer_lib 
+  onnxruntime 
+  velocity_ekf_lib
+)
 set_target_properties(onnx_airio_Damvi PROPERTIES
   BUILD_RPATH   "${ONNXRUNTIME_ROOT}/lib"
   INSTALL_RPATH "${ONNXRUNTIME_ROOT}/lib"
@@ -107,6 +118,7 @@ if(ENABLE_TENSORRT)
   )
   target_link_libraries(tensorrt_airio_Damvi
     imu_buffer_lib
+    velocity_ekf_lib
     ${TENSORRT_NVINFER_LIB}
     ${TENSORRT_NVONNXPARSER_LIB}
     ${TENSORRT_NVINFER_PLUGIN_LIB}
