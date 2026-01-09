@@ -9,6 +9,7 @@
 #include "onnx/airimu_onnx_runner.hpp"
 #include "onnx/airio_onnx_runner.hpp"
 #include "airio/airio_realtime_pipeline.hpp"
+#include "airio/debug/airio_ros_debug_logger.hpp"
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
@@ -49,6 +50,7 @@ class ImuSubscriberNode : public rclcpp::Node
 public:
     ImuSubscriberNode()
         : Node("imu_subscriber"),
+            message_count_(0),
             last_stamp_(rclcpp::Time(0, 0)),
             imu_buffer_(50),
             airimu_runner_("/root/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"),
@@ -68,6 +70,24 @@ public:
 
         // create realtime pipeline using existing buffer and runners
         pipeline_ = std::make_unique<airio::AirioRealtimePipeline>(&imu_buffer_, &airimu_runner_, &airio_runner_);
+
+        // create debug logger
+        airio::debug::RosDebugParams dp;
+        dp.throttle_ms_airimu = 1;
+        dp.throttle_ms_airio  = 1;
+        dp.throttle_ms_ekf    = 1;
+        dp.throttle_ms_qr     = 1;
+        dp.enable_airimu = true;
+        dp.enable_airio  = true;
+        dp.enable_ekf    = true;
+
+        dbg_logger_ = std::make_unique<airio::debug::AirioRosDebugLogger>(
+            this->get_logger().get_child("airio"),
+            this->get_clock(),
+            dp
+        );
+
+        pipeline_->setDebugSink(dbg_logger_.get());
 
         RCLCPP_INFO(this->get_logger(), "IMU Subscriber Node started. Subscribing to /imu/data_raw");
     }
@@ -95,11 +115,6 @@ private:
         if (!pipeline_->getLatestState(st)) return;
 
         publishOdometry(st, rclcpp::Time(msg->header.stamp));
-
-        RCLCPP_INFO(this->get_logger(),
-            "EKF updated: pos=%.3f %.3f %.3f vel=%.3f %.3f %.3f",
-            st.position_world.x(), st.position_world.y(), st.position_world.z(),
-            st.velocity_world.x(), st.velocity_world.y(), st.velocity_world.z());
     }
 
     ImuSample createSampleFromMsg(const sensor_msgs::msg::Imu::SharedPtr msg, double& dt_out)
@@ -168,6 +183,9 @@ private:
     airimu_onnx::Runner airimu_runner_;
     airio_onnx::Runner airio_runner_;
     std::unique_ptr<airio::AirioRealtimePipeline> pipeline_;
+
+    //logger
+    std::unique_ptr<airio::debug::AirioRosDebugLogger> dbg_logger_;
 };
 
 int main(int argc, char *argv[])

@@ -29,6 +29,13 @@ add_library(velocity_ekf_lib include/airio/ekf/velocity_ekf.cpp)
 target_include_directories(velocity_ekf_lib PUBLIC include)
 target_link_libraries(velocity_ekf_lib PUBLIC Eigen3::Eigen)
 
+# Debug logger
+add_library(debug_logger_lib include/airio/debug/airio_ros_debug_logger.cpp)
+target_include_directories(debug_logger_lib PUBLIC include)
+ament_target_dependencies(debug_logger_lib rclcpp)
+target_link_libraries(debug_logger_lib Eigen3::Eigen)
+
+
 # -------------------------
 # ONNX Runtime node
 # -------------------------
@@ -38,6 +45,7 @@ target_link_libraries(onnx_airio_Damvi
   imu_buffer_lib 
   onnxruntime 
   velocity_ekf_lib
+  debug_logger_lib
 )
 set_target_properties(onnx_airio_Damvi PROPERTIES
   BUILD_RPATH   "${ONNXRUNTIME_ROOT}/lib"

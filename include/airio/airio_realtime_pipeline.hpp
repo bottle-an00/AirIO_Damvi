@@ -3,6 +3,7 @@
 #include "../core/imu_buffer.hpp"
 #include "../onnx/airimu_onnx_runner.hpp"
 #include "../onnx/airio_onnx_runner.hpp"
+#include "debug/airio_debug_sink.hpp"
 #include "ekf/velocity_ekf.hpp"
 #include <rclcpp/rclcpp.hpp>
 
@@ -58,6 +59,8 @@ public:
   // retrieve latest EKF state
   bool getLatestState(AirioEkfState& out) const;
 
+  void setDebugSink(airio::debug::AirioDebugSink* sink) { dbg_ = sink; }
+
 private:
   ImuBuffer* imu_buffer_;
   airimu_onnx::Runner* airimu_runner_;
@@ -80,6 +83,8 @@ private:
   void rot_overwrite_latest_(const Eigen::Vector3d& so3);
 
   airio::ekf::Mat12 makeWarmupQ_() const;
+
+  airio::debug::AirioDebugSink* dbg_ = nullptr;
 };
 
 } // namespace airio

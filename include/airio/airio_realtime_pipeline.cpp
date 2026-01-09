@@ -1,4 +1,5 @@
 #include "airio/airio_realtime_pipeline.hpp"
+#include "airio/debug/airio_debug_sink.hpp"
 
 #include <Eigen/Dense>
 
@@ -65,6 +66,19 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
   // ------------------------------------------------
   imu_buffer_->push(sample);
 
+  // Debug
+  airio::debug::EkfDebug ekf_pre;
+  ekf_pre.dt = sample.dt;
+  {
+    const auto& x = ekf_.state();
+    ekf_pre.so3_pre = x.segment<3>(0);
+    ekf_pre.vel_pre = x.segment<3>(3);
+    ekf_pre.pos_pre = x.segment<3>(6);
+    ekf_pre.bg_pre  = x.segment<3>(9);
+    ekf_pre.ba_pre  = x.segment<3>(12);
+  }
+  if (dbg_) dbg_->onPreEkf(ekf_pre);
+
   Eigen::Vector3d so3_pre = ekf_.state().segment<3>(0);
   rot_push_(so3_pre);
 
@@ -82,13 +96,34 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
 
     auto Q = makeWarmupQ_();
 
+    //debug
+    Eigen::Matrix<double,12,1> Q_diag = Eigen::Matrix<double,12,1>::Zero();
+    for (int i=0;i<12;++i) Q_diag(i) = Q(i,i);
+    if (dbg_) dbg_->onEkfQ(Q_diag);
+
+    // measurement 없음
+    if (dbg_) dbg_->onEkfMeas(std::nullopt, Eigen::Vector3d::Zero());
+
     ekf_.Step(
       imu_in,
-      std::nullopt,              // ❌ no measurement
+      std::nullopt,              // no measurement
       Q,
       airio::ekf::Mat3::Zero(),  // unused
       sample.dt
     );
+
+    //debug
+    airio::debug::EkfDebug ekf_post;
+    ekf_post.dt = sample.dt;
+    {
+      const auto& x = ekf_.state();
+      ekf_post.so3_post = x.segment<3>(0);
+      ekf_post.vel_post = x.segment<3>(3);
+      ekf_post.pos_post = x.segment<3>(6);
+      ekf_post.bg_post  = x.segment<3>(9);
+      ekf_post.ba_post  = x.segment<3>(12);
+    }
+    if (dbg_) dbg_->onPostEkf(ekf_post);
 
     // overwrite latest rot with post-step orientation
     Eigen::Vector3d so3_post = ekf_.state().segment<3>(0);
@@ -139,6 +174,14 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
     imu_out.cov[base+4],
     imu_out.cov[base+5]);
 
+  //debug
+  airio::debug::AirimuDebug airimu_dbg;
+  airimu_dbg.acc_corr  = acc_corr;
+  airimu_dbg.gyro_corr = gyro_corr;
+  airimu_dbg.acc_cov   = acc_cov;
+  airimu_dbg.gyro_cov  = gyro_cov;
+  if (dbg_) dbg_->onAirimu(airimu_dbg);
+
   // --- AirIO ---
   std::vector<float> acc, gyro, rot;
   imu_buffer_->fill_acc_flat(acc);
@@ -147,6 +190,19 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
 
   auto io_out = airio_runner_->run(acc, gyro, rot);
 
+  //debug
+  airio::debug::AirioDebug airio_dbg;
+  airio_dbg.has_net_vel = (io_out.net_vel.size() >= 3);
+  airio_dbg.has_cov     = (io_out.cov.size() >= 3);
+  if (airio_dbg.has_net_vel) {
+    airio_dbg.net_vel << io_out.net_vel[0], io_out.net_vel[1], io_out.net_vel[2];
+  }
+  if (airio_dbg.has_cov) {
+    airio_dbg.cov_diag << io_out.cov[0], io_out.cov[1], io_out.cov[2];
+  }
+  if (dbg_) dbg_->onAirio(airio_dbg);
+
+  //For EKF
   std::optional<airio::ekf::Vec3> z;
   if (io_out.net_vel.size() >= 3) {
     airio::ekf::Vec3 zb;
@@ -158,6 +214,14 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
   R_meas(0,0) = io_out.cov[0];
   R_meas(1,1) = io_out.cov[1];
   R_meas(2,2) = io_out.cov[2];
+
+  //debug
+  std::optional<Eigen::Vector3d> z_vel;
+  if (airio_dbg.has_net_vel) z_vel = airio_dbg.net_vel;
+  
+  Eigen::Vector3d R_diag = Eigen::Vector3d::Zero();
+  if (airio_dbg.has_cov) R_diag = airio_dbg.cov_diag;
+  if (dbg_) dbg_->onEkfMeas(z_vel, R_diag);
 
   // --- Q from AirIMU ---
   airio::ekf::Mat12 Q = airio::ekf::Mat12::Zero();
@@ -174,6 +238,11 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
   Q(10,10)= params_.acc_bias_rw;
   Q(11,11)= params_.acc_bias_rw;
 
+  //debug
+  Eigen::Matrix<double,12,1> Q_diag = Eigen::Matrix<double,12,1>::Zero();
+  for (int i=0;i<12;++i) Q_diag(i) = Q(i,i);
+  if (dbg_) dbg_->onEkfQ(Q_diag);
+
   // --- EKF ---
   airio::ekf::ImuInput imu_in;
   imu_in.acc  = airio::ekf::Vec3(
@@ -188,6 +257,19 @@ bool AirioRealtimePipeline::pushImu(const ImuSample& sample)
   imu_in.d_ba = airio::ekf::Vec3::Zero();
 
   ekf_.Step(imu_in, z, Q, R_meas, sample.dt);
+
+  //debug
+  airio::debug::EkfDebug ekf_post;
+  ekf_post.dt = sample.dt;
+  {
+    const auto& x = ekf_.state();
+    ekf_post.so3_post = x.segment<3>(0);
+    ekf_post.vel_post = x.segment<3>(3);
+    ekf_post.pos_post = x.segment<3>(6);
+    ekf_post.bg_post  = x.segment<3>(9);
+    ekf_post.ba_post  = x.segment<3>(12);
+  }
+  if (dbg_) dbg_->onPostEkf(ekf_post);
 
   // rot overwrite
   rot_overwrite_latest_(ekf_.state().segment<3>(0));
