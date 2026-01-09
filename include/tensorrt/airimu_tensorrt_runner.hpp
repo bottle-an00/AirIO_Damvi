@@ -13,6 +13,11 @@
 
 namespace airimu_trt {
 
+  struct AirImuOut {
+  std::vector<float> corr;  // engine output "corr"
+  std::vector<float> cov;   // engine output "cov"
+};
+
 /**
  * AirIMU TensorRT Runner
  * Input : feat (name: "feat")  FP32, 엔진 shape 기반 element count 사용
@@ -32,14 +37,13 @@ public:
     d_feat_(nullptr),
     d_corr_(nullptr),
     feat_elems_(0),
-    corr_elems_(0) {
+    corr_elems_(0),
+    cov_elems_(0) {
     init_(engine_path);
   }
 
   ~Runner() { release_(); }
 
-  // feat_flat: element count는 엔진 입력 shape에 의해 결정됨
-  // return  : corr_flat: element count는 엔진 출력 shape에 의해 결정됨
   std::vector<float> run(const std::vector<float>& feat_flat) {
     if (!context_) throw std::runtime_error("airimu_trt::Runner::run(): not initialized");
     if (feat_flat.size() != feat_elems_) {
@@ -59,18 +63,26 @@ public:
       throw std::runtime_error("airimu_trt::Runner::run(): enqueueV3 failed");
     }
 
+
+    AirImuOut out;
+    out.corr.resize(corr_elems_);
+    out.cov.resize(cov_elems_);
+
     // D2H
-    checkCuda_(cudaMemcpyAsync(corr_flat.data(), d_corr_,
+    checkCuda_(cudaMemcpyAsync(out.corr.data(), d_corr_,
                                corr_elems_ * sizeof(float),
                                cudaMemcpyDeviceToHost, stream_));
+    checkCuda_(cudaMemcpyAsync(out.cov.data(), d_cov_,
+                               cov_elems_ * sizeof(float),
+                               cudaMemcpyDeviceToHost, stream_));                            
     checkCuda_(cudaStreamSynchronize(stream_));
 
-    return corr_flat;
+    return out;
   }
 
-  // (선택) 호출부에서 필요하면 사용할 수 있게 제공한다.
   size_t feat_elems() const { return feat_elems_; }
   size_t corr_elems() const { return corr_elems_; }
+  size_t cov_elems()  const { return cov_elems_; }
 
 private:
   class Logger : public nvinfer1::ILogger {
@@ -126,44 +138,80 @@ private:
     if (!context_) throw std::runtime_error("airimu_trt::Runner: createExecutionContext failed");
 
     // IO tensor name 찾기 (첫 input/첫 output)
-    std::string feat_name, corr_name;
+    std::string feat_name;
+    std::string corr_name;
+    std::string cov_name;
+
     const int nb = engine_->getNbIOTensors();
     for (int i = 0; i < nb; ++i) {
       const char* n = engine_->getIOTensorName(i);
       auto mode = engine_->getTensorIOMode(n);
-      if (mode == nvinfer1::TensorIOMode::kINPUT && feat_name.empty()) feat_name = n;
-      if (mode == nvinfer1::TensorIOMode::kOUTPUT && corr_name.empty()) corr_name = n;
+
+      if (mode == nvinfer1::TensorIOMode::kINPUT) {
+        if (feat_name.empty()) feat_name = n;
+      } else {
+        // outputs: try match by name first
+        std::string ns(n);
+        if (ns == "corr") corr_name = ns;
+        else if (ns == "cov") cov_name = ns;
+      }
     }
-    if (feat_name.empty() || corr_name.empty()) {
-      throw std::runtime_error("airimu_trt::Runner: failed to find input/output tensor names");
+
+    // fallback: if names not exactly "corr"/"cov", pick first/second output deterministically
+    if (corr_name.empty() || cov_name.empty()) {
+      std::vector<std::string> outs;
+      outs.reserve(2);
+      for (int i = 0; i < nb; ++i) {
+        const char* n = engine_->getIOTensorName(i);
+        if (engine_->getTensorIOMode(n) == nvinfer1::TensorIOMode::kOUTPUT) {
+          outs.emplace_back(n);
+        }
+      }
+      if (outs.size() < 2) {
+        throw std::runtime_error("airimu_trt::Runner: expected 2 outputs (corr,cov) but found " + std::to_string(outs.size()));
+      }
+      if (corr_name.empty()) corr_name = outs[0];
+      if (cov_name.empty())  cov_name  = outs[1];
+    }
+
+    if (feat_name.empty() || corr_name.empty() || cov_name.empty()) {
+      throw std::runtime_error("airimu_trt::Runner: failed to find required IO tensors (feat,corr,cov)");
     }
 
     // shape 기반 element count
     auto feat_dims = engine_->getTensorShape(feat_name.c_str());
     auto corr_dims = engine_->getTensorShape(corr_name.c_str());
+    auto cov_dims  = engine_->getTensorShape(cov_name.c_str());
+
     feat_elems_ = volume_(feat_dims);
     corr_elems_ = volume_(corr_dims);
-
+    cov_elems_  = volume_(cov_dims);
+    
     // CUDA resources
     checkCuda_(cudaStreamCreate(&stream_));
     checkCuda_(cudaMalloc(&d_feat_, feat_elems_ * sizeof(float)));
     checkCuda_(cudaMalloc(&d_corr_, corr_elems_ * sizeof(float)));
+    checkCuda_(cudaMalloc(&d_cov_,  cov_elems_  * sizeof(float)));
 
     // tensor address bind
     if (!context_->setTensorAddress(feat_name.c_str(), d_feat_))
       throw std::runtime_error("airimu_trt::Runner: setTensorAddress(feat) failed");
     if (!context_->setTensorAddress(corr_name.c_str(), d_corr_))
       throw std::runtime_error("airimu_trt::Runner: setTensorAddress(corr) failed");
+    if (!context_->setTensorAddress(cov_name.c_str(), d_cov_))
+      throw std::runtime_error("airimu_trt::Runner: setTensorAddress(cov) failed");
   }
 
   void release_() {
     if (d_feat_) { cudaFree(d_feat_); d_feat_ = nullptr; }
     if (d_corr_) { cudaFree(d_corr_); d_corr_ = nullptr; }
+    if (d_cov_)  { cudaFree(d_cov_ ); d_cov_  = nullptr; }
     if (stream_) { cudaStreamDestroy(stream_); stream_ = nullptr; }
+
     context_.reset();
     engine_.reset();
     runtime_.reset();
-    feat_elems_ = corr_elems_ = 0;
+    feat_elems_ = corr_elems_ = cov_elems_ = 0;
   }
 
   Logger logger_;
@@ -174,8 +222,11 @@ private:
   cudaStream_t stream_;
   void* d_feat_;
   void* d_corr_;
+  void* d_cov_;
+
   size_t feat_elems_;
   size_t corr_elems_;
+  size_t cov_elems_;
 };
 
 }  // namespace airimu_trt
