@@ -44,7 +44,7 @@ public:
 
   ~Runner() { release_(); }
 
-  std::vector<float> run(const std::vector<float>& feat_flat) {
+  AirImuOut run(const std::vector<float>& feat_flat) {
     if (!context_) throw std::runtime_error("airimu_trt::Runner::run(): not initialized");
     if (feat_flat.size() != feat_elems_) {
       throw std::runtime_error("airimu_trt::Runner::run(): feat size mismatch. expected=" +
@@ -74,7 +74,7 @@ public:
                                cudaMemcpyDeviceToHost, stream_));
     checkCuda_(cudaMemcpyAsync(out.cov.data(), d_cov_,
                                cov_elems_ * sizeof(float),
-                               cudaMemcpyDeviceToHost, stream_));                            
+                               cudaMemcpyDeviceToHost, stream_));
     checkCuda_(cudaStreamSynchronize(stream_));
 
     return out;
@@ -186,7 +186,7 @@ private:
     feat_elems_ = volume_(feat_dims);
     corr_elems_ = volume_(corr_dims);
     cov_elems_  = volume_(cov_dims);
-    
+
     // CUDA resources
     checkCuda_(cudaStreamCreate(&stream_));
     checkCuda_(cudaMalloc(&d_feat_, feat_elems_ * sizeof(float)));

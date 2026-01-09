@@ -27,6 +27,22 @@ struct AirioEkfState {
 
 struct AirioRealtimeParams {
   size_t buffer_len = 50;
+  size_t window_len = 50;
+
+  // AirIMU
+  int airimu_row = 40;     // newest (50 - interval=9 - 1)
+  double q_scale = 1.0;
+
+  // Bias random walk
+  double gyro_bias_rw = 1e-8;
+  double acc_bias_rw  = 1e-6;
+
+  // Warm-up behavior
+  bool publish_during_warmup = false;
+
+  // Default IMU noise during warm-up (raw IMU)
+  double warmup_gyro_noise = 1e-4;
+  double warmup_acc_noise  = 1e-2;
 };
 
 class AirioRealtimePipeline {
@@ -50,6 +66,20 @@ private:
   airio::ekf::VelocityEKF ekf_;
   AirioEkfState latest_state_;
   AirioRealtimeParams params_;
+
+  // rot ring buffer (EKF so3_log sequence)
+  size_t rot_cap_;
+  std::vector<Eigen::Vector3d> rot_data_;
+  size_t rot_size_;
+  size_t rot_head_;
+
+  // rot helpers
+  void rot_push_(const Eigen::Vector3d& so3);
+  bool rot_full_() const;
+  bool fill_rot_flat_(std::vector<float>& out) const;  // [T*3], oldest->newest
+  void rot_overwrite_latest_(const Eigen::Vector3d& so3);
+
+  airio::ekf::Mat12 makeWarmupQ_() const;
 };
 
 } // namespace airio

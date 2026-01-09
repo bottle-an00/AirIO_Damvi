@@ -104,9 +104,9 @@ void VelocityEKF::UpdateVelocity(const Vec3& z, const Mat3& R) {
   P_ = IKC * P_ * IKC.transpose() + K * R * K.transpose();
 }
 
-void VelocityEKF::Step(const ImuInput& imu, const std::optional<Vec3>& z, const Mat12& Q, const Mat3& R) {
+void VelocityEKF::Step(const ImuInput& imu, const std::optional<Vec3>& z, const Mat12& Q, const Mat3& R, double dt) {
   Vec12 u = BuildInput(imu, x_);
-  Predict(u, /*dt*/ 1e-3, Q); // note: user should pass real dt; placeholder here
+  Predict(u, dt, Q);
   if (z.has_value()) {
     UpdateVelocity(z.value(), R);
   }

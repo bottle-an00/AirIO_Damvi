@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnvinfer-headers-plugin-dev=${TRT_VER} \
  && rm -rf /var/lib/apt/lists/*
 
-ARG ORT_VERSION=1.17.3
+ARG ORT_VERSION=1.23.2
 ARG ORT_OS=linux
 ARG ORT_ARCH=x64
 
