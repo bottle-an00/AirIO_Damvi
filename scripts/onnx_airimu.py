@@ -6,11 +6,11 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-PROJECT_ROOT = "/root/AirIO_Damvi"
-CKPT_PATH    = "/root/AirIO_Damvi/model/airimu/best_model.ckpt"
+PROJECT_ROOT = "/home/jba/AirIO_Damvi"
+CKPT_PATH    = "/home/jba/AirIO_Damvi/model/airimu/best_model.ckpt"
 
-CONF_PATH    = "/root/AirIO_Damvi/model/airimu/codenet.yaml"
-ONNX_PATH    = "/root/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"
+CONF_PATH    = "/home/jba/AirIO_Damvi/model/airimu/codenet.yaml"
+ONNX_PATH    = "/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"
 
 B = 1
 T = 50
@@ -55,36 +55,34 @@ class CodeNetCorrectionFeatWrapper(nn.Module):
         super().__init__()
         self.net = codenet
 
-        # ✅ T=50 고정 export용 index map (len=41)
         idx = [0]*5 + [1]*9 + [2]*9 + [3]*9 + [4]*9  # 5 + 36 = 41
         self.register_buffer("idx_map", torch.tensor(idx, dtype=torch.long))
 
-    def forward(self, feat: torch.Tensor) -> torch.Tensor:
-        # feat: [B, 50, 6]
+    def forward(self, feat: torch.Tensor):
         acc  = feat[..., 0:3]
         gyro = feat[..., 3:6]
 
-        # ✅ net.inference()를 쓰지 말고 encoder/decoder만 사용 (index_put 회피)
-        x = torch.cat([acc, gyro], dim=-1)          # [B, 50, 6]
-        h = self.net.encoder(x)[:, 1:, :]           # [B, 49, H]
-        corr_feat = self.net.decoder(h)             # [B, 49, 6]
+        x = torch.cat([acc, gyro], dim=-1)      # [B,50,6]
+        f = self.net.encoder(x)[:, 1:, :]       # [B,49,H]
 
-        corr_acc_feat  = corr_feat[..., 0:3]        # [B, 49, 3]
-        corr_gyro_feat = corr_feat[..., 3:6]        # [B, 49, 3]
+        # correction
+        corr_feat = self.net.decoder(f)         # [B,49,6]
+        corr = torch.index_select(corr_feat, dim=1, index=self.idx_map)  # [B,41,6]
 
-        # ✅ _update()와 동일한 결과를 gather로 생성: [B, 41, 3]
-        corr_acc  = torch.index_select(corr_acc_feat,  dim=1, index=self.idx_map)
-        corr_gyro = torch.index_select(corr_gyro_feat, dim=1, index=self.idx_map)
+        # uncertainty (cov)
+        if getattr(self.net.conf, "propcov", False):
+            cov_feat = self.net.cov_decoder(f)  # [B,49,6]  (exp(...) 형태)
+            cov = torch.index_select(cov_feat, dim=1, index=self.idx_map)  # [B,41,6]
+        else:
+            # propcov=False면 0으로 
+            cov = torch.zeros_like(corr)
 
-        corr = torch.cat([corr_acc, corr_gyro], dim=-1)  # [B, 41, 6]
-        return corr
+        return corr, cov
 
 def main():
     # 1) conf 로드
     conf = load_conf_yaml(CONF_PATH)
 
-    # (선택) export에서는 gtrot/propcov 같은 분기를 줄이는 게 안정적일 때가 많음
-    # 네가 이미 gtrot False로 테스트했다고 했으니, 여기서도 덮어씀
     if hasattr(conf, "train"):
         conf.train.gtrot = False
 
@@ -110,7 +108,7 @@ def main():
     dummy = (torch.randn(B, T, 6, dtype=torch.float32) * 0.01).clamp(-0.1, 0.1)
     with torch.no_grad():
         y = wrapper(dummy)
-    print("forward ok:", y.shape, bool(torch.isfinite(y).all()))
+    print("forward ok:", y[0].shape, y[1].shape, bool(torch.isfinite(y[0]).all()), bool(torch.isfinite(y[1]).all()))
 
     # 6) ONNX export (legacy)
     with torch.no_grad():
@@ -122,7 +120,7 @@ def main():
         dummy,
         ONNX_PATH,
         input_names=["feat"],
-        output_names=["corr"],
+        output_names=["corr", "cov"],
         opset_version=17,
         do_constant_folding=False,
         dynamic_axes=None

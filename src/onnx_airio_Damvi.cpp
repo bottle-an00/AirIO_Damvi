@@ -48,19 +48,24 @@ private:
 
         std::vector<float> feat;
         if (imu_buffer_.fill_feat_flat(feat)) {
-            auto corr = airimu_runner_.run(feat);
-        
-            // corr는 [41*6] 가정(airimu runner가 그렇게 반환)
+            auto out = airimu_runner_.run(feat);
+            const auto& corr = out.corr;
+            const auto& cov  = out.cov;
+            
+            constexpr int OUT_T = 41;
+            constexpr int OUT_C = 6;
+            int last = (OUT_T - 1) * OUT_C;
+
             RCLCPP_INFO(this->get_logger(),
-                "[AIRIMU] corr size=%zu, corr[0]=%.6f %.6f %.6f %.6f %.6f %.6f",
-                corr.size(),
-                corr.size() >= 6 ? corr[0] : 0.0f,
-                corr.size() >= 6 ? corr[1] : 0.0f,
-                corr.size() >= 6 ? corr[2] : 0.0f,
-                corr.size() >= 6 ? corr[3] : 0.0f,
-                corr.size() >= 6 ? corr[4] : 0.0f,
-                corr.size() >= 6 ? corr[5] : 0.0f
-            );
+                "[AIRIMU] corr_last=%f %f %f %f %f %f",
+                corr[last+0], corr[last+1], corr[last+2],
+                corr[last+3], corr[last+4], corr[last+5]);
+
+            RCLCPP_INFO(this->get_logger(),
+              "[AIRIMU] cov_last=%f %f %f %f %f %f",
+              cov[last+0], cov[last+1], cov[last+2],
+              cov[last+3], cov[last+4], cov[last+5]);
+              
         } else {
             RCLCPP_WARN(this->get_logger(), "[AIRIMU] fill_feat_flat failed");
         }
@@ -68,7 +73,6 @@ private:
         std::vector<float> acc, gyro;
         if (imu_buffer_.fill_acc_flat(acc) && imu_buffer_.fill_gyro_flat(gyro)) {
 
-            // rot은 외부 입력 예정이므로, 현재는 "동작 확인용" 더미 0으로 채움
             std::vector<float> rot(acc.size(), 0.0f); // size = T*3
 
             auto out = airio_runner_.run(acc, gyro, rot);

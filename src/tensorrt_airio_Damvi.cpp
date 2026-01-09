@@ -49,18 +49,23 @@ private:
         // -------------------------
         std::vector<float> feat;
         if (imu_buffer_.fill_feat_flat(feat)) {
-            auto corr = airimu_runner_.run(feat);
+            auto out = airimu_runner_.run(feat);
+            const auto& corr = out.corr;
+            const auto& cov  = out.cov;
+            
+            constexpr int OUT_T = 41;
+            constexpr int OUT_C = 6;
+            int last = (OUT_T - 1) * OUT_C;
 
             RCLCPP_INFO(this->get_logger(),
-                "[AIRIMU-TRT] corr size=%zu, corr[0]=%.6f %.6f %.6f %.6f %.6f %.6f",
-                corr.size(),
-                corr.size() >= 6 ? corr[0] : 0.0f,
-                corr.size() >= 6 ? corr[1] : 0.0f,
-                corr.size() >= 6 ? corr[2] : 0.0f,
-                corr.size() >= 6 ? corr[3] : 0.0f,
-                corr.size() >= 6 ? corr[4] : 0.0f,
-                corr.size() >= 6 ? corr[5] : 0.0f
-            );
+                "[AIRIMU] corr_last=%f %f %f %f %f %f",
+                corr[last+0], corr[last+1], corr[last+2],
+                corr[last+3], corr[last+4], corr[last+5]);
+
+            RCLCPP_INFO(this->get_logger(),
+              "[AIRIMU] cov_last=%f %f %f %f %f %f",
+              cov[last+0], cov[last+1], cov[last+2],
+              cov[last+3], cov[last+4], cov[last+5]);
         } else {
             RCLCPP_WARN(this->get_logger(), "[AIRIMU-TRT] fill_feat_flat failed");
         }
