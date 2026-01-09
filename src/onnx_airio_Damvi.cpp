@@ -2,21 +2,23 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <chrono>
 #include <cmath>
+#include <memory>
 
 #include "core/imu_buffer.hpp"
 
 #include "onnx/airimu_onnx_runner.hpp"
 #include "onnx/airio_onnx_runner.hpp"
+#include "airio/airio_realtime_pipeline.hpp"
 
 class ImuSubscriberNode : public rclcpp::Node
 {
 public:
     ImuSubscriberNode()
         : Node("imu_subscriber"),
-          last_stamp_(rclcpp::Time(0, 0)),
-          imu_buffer_(50),
-          airimu_runner_("/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"),
-          airio_runner_("/home/jba/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.onnx")
+            last_stamp_(rclcpp::Time(0, 0)),
+            imu_buffer_(50),
+            airimu_runner_("/home/jba/AirIO_Damvi/model/airimu/airimu_codenet_fp32_T50.onnx"),
+            airio_runner_("/home/jba/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.onnx")
     {
         
         // QoS 설정: SensorDataQoS
@@ -27,6 +29,9 @@ public:
         subscription_ = this->create_subscription<sensor_msgs::msg::Imu>(
             "/imu/data", qos,
             std::bind(&ImuSubscriberNode::imuCallback, this, std::placeholders::_1));
+
+        // create realtime pipeline using existing buffer and runners
+        pipeline_ = std::make_unique<airio::AirioRealtimePipeline>(&imu_buffer_, &airimu_runner_, &airio_runner_);
 
         RCLCPP_INFO(this->get_logger(), "IMU Subscriber Node started. Subscribing to /imu/data_raw");
     }
@@ -42,56 +47,17 @@ private:
 
         RCLCPP_INFO(this->get_logger(), "Message count: %d, dt: %.6f", message_count_, dt);
 
-        imu_buffer_.push(sample);
+        // push into unified pipeline; pipeline owns inference + EKF steps
+        imu_buffer_.push(sample); // keep buffer state consistent
+        if (!pipeline_) return;
 
-        if (!imu_buffer_.full()) return;
-
-        std::vector<float> feat;
-        if (imu_buffer_.fill_feat_flat(feat)) {
-            auto out = airimu_runner_.run(feat);
-            const auto& corr = out.corr;
-            const auto& cov  = out.cov;
-            
-            constexpr int OUT_T = 41;
-            constexpr int OUT_C = 6;
-            int last = (OUT_T - 1) * OUT_C;
-
-            RCLCPP_INFO(this->get_logger(),
-                "[AIRIMU] corr_last=%f %f %f %f %f %f",
-                corr[last+0], corr[last+1], corr[last+2],
-                corr[last+3], corr[last+4], corr[last+5]);
-
-            RCLCPP_INFO(this->get_logger(),
-              "[AIRIMU] cov_last=%f %f %f %f %f %f",
-              cov[last+0], cov[last+1], cov[last+2],
-              cov[last+3], cov[last+4], cov[last+5]);
-              
-        } else {
-            RCLCPP_WARN(this->get_logger(), "[AIRIMU] fill_feat_flat failed");
-        }
-
-        std::vector<float> acc, gyro;
-        if (imu_buffer_.fill_acc_flat(acc) && imu_buffer_.fill_gyro_flat(gyro)) {
-
-            std::vector<float> rot(acc.size(), 0.0f); // size = T*3
-
-            auto out = airio_runner_.run(acc, gyro, rot);
-
-            RCLCPP_INFO(this->get_logger(),
-                "[AIRIO] cov size=%zu, net_vel size=%zu", out.cov.size(), out.net_vel.size());
-
-            if (out.net_vel.size() >= 3) {
-                RCLCPP_INFO(this->get_logger(),
-                    "[AIRIO] net_vel[0]=%.6f %.6f %.6f",
-                    out.net_vel[0], out.net_vel[1], out.net_vel[2]);
+        bool updated = pipeline_->pushImu(sample);
+        if (updated) {
+            airio::AirioEkfState st;
+            if (pipeline_->getLatestState(st)) {
+                RCLCPP_INFO(this->get_logger(), "EKF updated: vel=%.6f %.6f %.6f",
+                    st.velocity_world.x(), st.velocity_world.y(), st.velocity_world.z());
             }
-            if (out.cov.size() >= 3) {
-                RCLCPP_INFO(this->get_logger(),
-                    "[AIRIO] cov[0]=%.6f %.6f %.6f",
-                    out.cov[0], out.cov[1], out.cov[2]);
-            }
-        } else {
-            RCLCPP_WARN(this->get_logger(), "[AIRIO] fill_acc/gyro failed");
         }
     }
 
@@ -130,6 +96,7 @@ private:
     // onnx runners
     airimu_onnx::Runner airimu_runner_;
     airio_onnx::Runner airio_runner_;
+    std::unique_ptr<airio::AirioRealtimePipeline> pipeline_;
 };
 
 int main(int argc, char *argv[])

@@ -28,11 +28,10 @@ add_library(velocity_ekf_lib include/airio/ekf/velocity_ekf.cpp)
 target_include_directories(velocity_ekf_lib PUBLIC include)
 target_link_libraries(velocity_ekf_lib PUBLIC Eigen3::Eigen)
 
-
 # -------------------------
 # ONNX Runtime node
 # -------------------------
-add_executable(onnx_airio_Damvi src/onnx_airio_Damvi.cpp)
+add_executable(onnx_airio_Damvi src/onnx_airio_Damvi.cpp include/airio/airio_realtime_pipeline.cpp)
 ament_target_dependencies(onnx_airio_Damvi rclcpp sensor_msgs)
 target_link_libraries(onnx_airio_Damvi 
   imu_buffer_lib 
@@ -110,7 +109,7 @@ if(ENABLE_TENSORRT)
     )
   endif()
 
-  add_executable(tensorrt_airio_Damvi src/tensorrt_airio_Damvi.cpp)
+  add_executable(tensorrt_airio_Damvi src/tensorrt_airio_Damvi.cpp include/airio/airio_realtime_pipeline.cpp)
   ament_target_dependencies(tensorrt_airio_Damvi rclcpp sensor_msgs)
   target_include_directories(tensorrt_airio_Damvi PRIVATE
     ${TENSORRT_INCLUDE_DIR}
