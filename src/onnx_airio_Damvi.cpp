@@ -97,6 +97,13 @@ private:
     void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         message_count_++;
+        RCLCPP_INFO(this->get_logger(), "[IMU] Received IMU message %d", message_count_);
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[IMU RAW] acc [x y z] = [%.6f %.6f %.6f], gyro [x y z] = [%.6f %.6f %.6f]",
+            msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z,
+            msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z
+        );
 
         double dt;
         ImuSample sample = createSampleFromMsg(msg, dt);
@@ -115,6 +122,8 @@ private:
         if (!pipeline_->getLatestState(st)) return;
 
         publishOdometry(st, rclcpp::Time(msg->header.stamp));
+        RCLCPP_INFO(this->get_logger(), "\n\n");
+
     }
 
     ImuSample createSampleFromMsg(const sensor_msgs::msg::Imu::SharedPtr msg, double& dt_out)

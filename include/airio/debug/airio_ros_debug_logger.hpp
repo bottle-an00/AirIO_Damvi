@@ -3,6 +3,8 @@
 #include "airio/debug/airio_debug_sink.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <string>
+#include <fstream>
+#include <mutex>
 
 namespace airio::debug {
 
