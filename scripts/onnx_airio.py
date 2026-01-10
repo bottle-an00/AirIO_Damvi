@@ -16,7 +16,7 @@ DEFAULT_CKPT = "/root/AirIO_Damvi/model/airio/best_model.ckpt"
 DEFAULT_OUT = "/root/AirIO_Damvi/model/airio/airio_codewithrot_fp32_T50.onnx"
 
 BATCH_SIZE = 1
-SEQ_LEN = 50
+SEQ_LEN = 1000
 OPSET_VERSION = 17
 DTYPE = torch.float32
 # ================================================
